@@ -4,7 +4,7 @@ A lightweight OpenCode custom tool that checks generated code against personal e
 
 ## Why This Tool Exists
 
-### The Problem with Cheap Coding Models
+### The Problem with Deepseek V4 Pro
 
 If you use a cheap coding model (like DeepSeek V4 Pro) in daily development, you've probably experienced this: it writes code confidently but frequently violates basic engineering rules — using `double` for money amounts, writing network requests inside SwiftUI Views, omitting `COMMENT ON` in database migrations, and so on. You end up manually catching and correcting the same classes of violations over and over.
 
