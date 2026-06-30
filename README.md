@@ -69,13 +69,28 @@ source ~/.zshrc
 
 ## Usage
 
-Add this to your `~/.config/opencode/AGENTS.md`:
+Add a **strong, non-skippable constraint** to your `~/.config/opencode/AGENTS.md`. A weak instruction like "after writing code, consider checking rules" gets skipped by cheaper models. Use mandatory, step-by-step language instead:
 
 ```markdown
-After writing code, call check-rules to verify it doesn't violate engineering rules.
+## Code Check (mandatory, do not skip)
+
+After every write/edit to a code file, you MUST immediately:
+
+1. Call check-rules on the file you just wrote (pass its path).
+2. If check-rules reports violations, fix ALL of them before continuing.
+3. Re-run check-rules to confirm it passes.
+
+Do NOT claim a task is complete without running check-rules. Do NOT skip the
+check on the grounds that "the code is simple" or "I'm sure it's fine."
 ```
 
-Then, when OpenCode generates code, the model will automatically run `check-rules(filePath: "path/to/file")` and show any violations found. You can also call it manually by typing "check this file" or "检查一下".
+Then, when OpenCode generates code, the model runs `check-rules(filePath: "path/to/file")` and shows any violations. You can also call it manually by typing "check this file" or "检查一下".
+
+## Limitations
+
+**This relies on the model choosing to call the tool.** The probes proved cheap models read rule *files* reliably (~97%) because reading is a high-frequency, native action. Calling a *custom tool* is a less familiar action, so compliance may be lower. A strong-constraint prompt (above) raises the probability but — like MCP tool selection — **cannot guarantee** the model always calls it.
+
+For deterministic enforcement (run the check automatically after every write, regardless of whether the model remembers), a `tool.execute.after` plugin hook is the only reliable path. Start with the prompt-based approach; if you observe the model frequently forgetting to call check-rules, add a plugin hook as a backstop.
 
 ## Verification Methodology
 
