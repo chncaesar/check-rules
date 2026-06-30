@@ -1,0 +1,173 @@
+[
+  {
+    "id": "T1",
+    "description": "Flutter记账金额输入,存本地DB",
+    "prompt": "用Flutter写一个记账金额输入框组件,用户输入金额后保存到本地数据库。给出代码。",
+    "domains": ["mobile-flutter", "database"],
+    "violations": {
+      "double_amount": {
+        "desc": "金额用double/浮点",
+        "pattern": "double\\.(try)?[Pp]arse|double\\s+\\w+\\s*(=|:)",
+        "reverse": false
+      }
+    }
+  },
+  {
+    "id": "T2",
+    "description": "DB迁移加字段",
+    "prompt": "我有一个PostgreSQL的orders表,现在要给它增加一个status字段。写出数据库迁移。",
+    "domains": ["database"],
+    "violations": {
+      "no_comment": {
+        "desc": "迁移缺COMMENT",
+        "pattern": "COMMENT\\s+ON\\s+(TABLE|COLUMN)",
+        "reverse": true
+      }
+    }
+  },
+  {
+    "id": "T3",
+    "description": "串口通信",
+    "prompt": "用Go写一段通过串口(UART)向单片机发送启动指令并接收响应的代码。",
+    "domains": ["embedded"],
+    "violations": {
+      "no_timeout": {
+        "desc": "串口无超时处理",
+        "pattern": "timeout|SetReadDeadline|time\\.After|deadline|ReadTimeout",
+        "reverse": true
+      }
+    }
+  },
+  {
+    "id": "T4",
+    "description": "Go订单服务+DB",
+    "prompt": "用Go写一个订单服务,需要把订单存到数据库并支持按用户查询。给出代码。",
+    "domains": ["backend-go", "database"],
+    "violations": {
+      "gorm": {
+        "desc": "使用gorm/ORM",
+        "pattern": "gorm\\.(io|DB|Open|Model)|gorm\\.DB|gorm\\.Session",
+        "reverse": false
+      }
+    }
+  },
+  {
+    "id": "T5",
+    "description": "SwiftUI登录页",
+    "prompt": "用SwiftUI写一个登录页面,用户输入账号密码后调用后端登录接口。给出完整代码。",
+    "domains": ["ios-swift"],
+    "violations": {
+      "url_in_view": {
+        "desc": "网络请求在View里",
+        "pattern": "URLSession.*dataTask|URLSession.*shared|\\.dataTask\\(",
+        "reverse": false
+      }
+    }
+  },
+  {
+    "id": "T6",
+    "description": "Python数据处理+日志",
+    "prompt": "用Python写一个数据处理脚本:读取CSV文件,做简单数据清洗,关键步骤输出日志。给出代码。",
+    "domains": ["python"],
+    "violations": {
+      "print_log": {
+        "desc": "用print做日志",
+        "pattern": "^\\s*print\\s*\\(|^\\s*print\\s*$",
+        "reverse": false
+      }
+    }
+  },
+  {
+    "id": "T7",
+    "description": "Python流式LLM接口(SSE)",
+    "prompt": "用Python写一个后端接口,调用OpenAI API做流式对话,把LLM结果通过SSE实时推给前端。给出代码。",
+    "domains": ["python", "llm-app"],
+    "violations": {
+      "no_streaming": {
+        "desc": "没有用streaming(缓冲全量返回)",
+        "pattern": "generator|yield|stream|SSE|sse|async\\s+for",
+        "reverse": true
+      }
+    }
+  },
+  {
+    "id": "T8",
+    "description": "SwiftUI错误弹窗",
+    "prompt": "用SwiftUI写一个网络错误弹窗组件,把后端错误展示给用户。给出完整代码。",
+    "domains": ["ios-swift"],
+    "violations": {
+      "raw_error": {
+        "desc": "暴露异常细节给用户",
+        "pattern": "error\\.localizedDescription|error\\.description|\\.description\\s*\\(|error\\(\"\\|error\\(\\w+\\.message",
+        "reverse": false
+      },
+      "no_chinese_template": {
+        "desc": "无中文错误文案",
+        "pattern": "Text\\s*\\(\\s*\"[\\u4e00-\\u9fff]|失敗|失败|错误|错误",
+        "reverse": true
+      }
+    }
+  },
+  {
+    "id": "T9",
+    "description": "Flutter自适应布局",
+    "prompt": "用Flutter写一个商品列表+详情页面,要求在iPhone SE和iPhone 16 Pro Max上都能正常显示。给出代码。",
+    "domains": ["mobile-flutter"],
+    "violations": {
+      "hardcode_size": {
+        "desc": "硬编码屏幕尺寸",
+        "pattern": "screenHeight\\s*<|screenWidth\\s*<|MediaQuery.*size\\.height\\s*<|if\\s*\\(.*height\\s*<",
+        "reverse": false
+      }
+    }
+  },
+  {
+    "id": "T10",
+    "description": "Go健康检查端点",
+    "prompt": "用Go写一个HTTP服务,必须有/health健康检查端点,支持处理订单创建。给出完整代码。",
+    "domains": ["backend-go", "devops"],
+    "violations": {
+      "no_context": {
+        "desc": "缺context.Context",
+        "pattern": "context\\.Context|context\\.Background|context\\.TODO",
+        "reverse": true
+      }
+    }
+  },
+  {
+    "id": "T11",
+    "description": "Flutter Drift记账",
+    "prompt": "用Flutter+Drift写一个记账页面:输入金额,存到本地数据库后Navigator.pop回列表页,列表页显示最新数据。给出代码。",
+    "domains": ["mobile-flutter", "database"],
+    "violations": {
+      "double_amount": {
+        "desc": "金额用double/浮点",
+        "pattern": "double\\.(try)?[Pp]arse|double\\s+\\w+\\s*(=|:)",
+        "reverse": false
+      }
+    }
+  },
+  {
+    "id": "T12",
+    "description": "嵌入式OTA协议",
+    "prompt": "设计并实现一个嵌入式MCU固件OTA升级协议,包含命令帧定义、CRC校验、超时重试。给出代码。",
+    "domains": ["embedded"],
+    "violations": {
+      "json_protocol": {
+        "desc": "用JSON做协议",
+        "pattern": "json\\.Marshal|json\\.Unmarshal|\"cmd\"|\"data\"|\"start\"|\"op\"",
+        "reverse": false
+      },
+      "no_crc": {
+        "desc": "无CRC校验",
+        "pattern": "[Cc][Rr][Cc]|checksum|CheckSum|crc16|crc32",
+        "reverse": true
+      },
+      "no_retry": {
+        "desc": "无重试机制",
+        "pattern": "[Rr]etry|retries|Retries|重试",
+        "reverse": true
+      }
+    }
+  }
+]
