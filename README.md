@@ -2,9 +2,47 @@
 
 A lightweight OpenCode custom tool that checks generated code against personal engineering rules using a cheap model (default: DeepSeek V4 Flash).
 
-**Motivation**: Coding agents (even strong ones like DeepSeek V4 Pro) frequently violate personal engineering preferences — using `double` for money, writing business logic in SwiftUI Views, omitting `COMMENT ON` in migrations, etc. Input-side rule injection helps but has a ~40% compliance ceiling. This tool provides a **post-generation check** to catch the remaining violations.
+## Why This Tool Exists
 
-For the full design context, see [DESIGN.md](https://github.com/chncaesar/opencode-engineering-brain).
+### The Problem with Cheap Coding Models
+
+If you use a cheap coding model (like DeepSeek V4 Pro) in daily development, you've probably experienced this: it writes code confidently but frequently violates basic engineering rules — using `double` for money amounts, writing network requests inside SwiftUI Views, omitting `COMMENT ON` in database migrations, and so on. You end up manually catching and correcting the same classes of violations over and over.
+
+### What We Tried First: Input-Side Rule Injection
+
+The obvious first approach is to write your engineering rules into the system prompt (AGENTS.md) and let the model read them before writing code. We tested this thoroughly.
+
+**Experiment 1: Strong-guidance markdown with index table**
+We put a constitution + domain-rule index table in AGENTS.md with explicit instructions: "Before writing any code, you MUST first read the relevant domain rule file."
+
+| Metric | Result |
+|--------|--------|
+| Tasks | 5 (Flutter/money, Go/DB, SwiftUI/View, serial/embedded, DB migration) |
+| Runs per task | 2 |
+| **Rule file reading rate** | **10/10 (100%)** ✅ The model *always* read the rules |
+| **Rule compliance rate** | **5/10 (50%)** ❌ Half the time it violated rules anyway |
+
+Even more, of the 5 violations, *all* were cases where the model had read the rules and still broke them.
+
+**Experiment 2: Expanded to 12 tasks across all domains**
+
+| Metric | Result |
+|--------|--------|
+| Tasks | 12 covering Go, Python, Flutter, SwiftUI, embedded, DB, LLM, DevOps |
+| **Reading rate** | **12/13 (92%)** ✅ |
+| **Compliance rate** | **4/13 (31%)** ❌ |
+
+### The Key Insight
+
+> **The model knows the rules. It reads them almost every time. It just doesn't follow them.**
+
+The problem is not "input-side injection failed" — it's that the model's internal decision-making doesn't reliably translate "I read the rule" into "I apply the rule." This is a fundamental model capability gap, especially pronounced in cheaper models. No amount of prompt engineering fixes it.
+
+### The Solution: Lightweight Post-Generation Check
+
+Instead of trying to make the model innately compliant (we can't), we **check its output** after it writes code. A cheap model (DeepSeek V4 Flash, ~$0.30/M tokens) reviews the generated code against the same rule set and flags violations. The results go back into the conversation — the coding model can self-correct, or you review them.
+
+This catches what input-side injection misses.
 
 ## Installation
 
@@ -37,7 +75,7 @@ Add this to your `~/.config/opencode/AGENTS.md`:
 After writing code, call check-rules to verify it doesn't violate engineering rules.
 ```
 
-Then, when OpenCode generates code, the model will automatically run `check-rules(filePath: "path/to/file")` and show any violations found. You can also call it manually by typing "检查一下" or "check this file".
+Then, when OpenCode generates code, the model will automatically run `check-rules(filePath: "path/to/file")` and show any violations found. You can also call it manually by typing "check this file" or "检查一下".
 
 ## How It Works
 
@@ -49,17 +87,17 @@ Then, when OpenCode generates code, the model will automatically run `check-rule
 
 ## Rules
 
-The rules directory contains domain-specific engineering rules in a decision-rules format:
+The rules directory contains domain-specific engineering rules. Each rule follows a decision-rules format with five elements: **scenario, do, don't, reason, example**.
 
-- `constitution.md` — universal rules that always apply (grep-first, single-source-of-truth, discuss-first, etc.)
-- `backend-go.md` — Go backend rules (no ORM, error wrapping)
+- `constitution.md` — universal rules that always apply
+- `backend-go.md` — Go backend rules
 - `database.md` — database rules (money as int cents, no drop+recreate, COMMENT required)
 - `embedded.md` — embedded/serial rules (binary protocol, no JSON, timeout+retry)
 - `ios-swift.md` — iOS/SwiftUI rules (ViewModel pattern, clean error messages)
 - `mobile-flutter.md` — Flutter/Dart rules (money int, Drift invalidate before pop)
 - `python.md` — Python rules (logging no print, DRY, style)
-- `llm-app.md` — LLM app rules (streaming, SSE)
-- `devops.md` — DevOps rules (no docker-compose DB in prod, /health endpoint)
+- `llm-app.md` — LLM app rules (streaming, SSE, no buffering)
+- `devops.md` — DevOps rules (/health endpoint)
 
 Customize these to match your own engineering preferences.
 
