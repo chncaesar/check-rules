@@ -77,6 +77,22 @@ After writing code, call check-rules to verify it doesn't violate engineering ru
 
 Then, when OpenCode generates code, the model will automatically run `check-rules(filePath: "path/to/file")` and show any violations found. You can also call it manually by typing "check this file" or "检查一下".
 
+## Verification Methodology
+
+The README's opening claims are based on two controlled probes run against DeepSeek V4 Pro. The full methodology is open-sourced in [`benchmark/`](./benchmark/):
+
+- **`tasks.json`** — 12 task definitions covering Go, Python, Flutter, SwiftUI, embedded, DB, LLM, and DevOps domains. Each task has known violation patterns with regex-based detectors.
+- **`analyze.py`** — Takes OpenCode `--format json` output files and produces a four-quadrant analysis (read+comply / read+violate / no-read+comply / no-read+violate).
+
+To reproduce:
+```bash
+# 1. Isolate your global AGENTS.md to avoid pollution
+# 2. Run each task with strong guidance:
+opencode run --format json --pure -m deepseek/deepseek-v4-pro "$TASK" > output.jsonl
+# 3. Analyze
+python benchmark/analyze.py ./runs benchmark/tasks.json
+```
+
 ## How It Works
 
 1. The tool reads the file from disk (after it's been written by the coding model)
