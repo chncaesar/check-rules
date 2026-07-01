@@ -54,7 +54,7 @@ function loadRules(domains: string[]): string {
   }
 
   for (const domain of domains) {
-    const ruleFile = path.join(RULES_DIR, "rules", `${domain}.md`)
+    const ruleFile = path.join(RULES_DIR, `${domain}.md`)
     if (existsSync(ruleFile)) {
       parts.push(`\n== ${domain} 领域规则 ==\n` + readFileSync(ruleFile, "utf-8"))
     }

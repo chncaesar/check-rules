@@ -50,13 +50,15 @@ This catches what input-side injection misses.
 # 1. Copy the tool to OpenCode's custom tools directory
 cp tools/check-rules.ts ~/.config/opencode/tools/check-rules.ts
 
-# 2. Copy the default rules (optional, customize your own)
-cp -r rules ~/.config/opencode/engineering-brain/rules
+# 2. Point OpenCode's engineering-brain at this repo's rules (single source of truth)
+ln -s "$(pwd)/rules" ~/.config/opencode/engineering-brain
 
 # 3. Set your API key
 echo 'export DEEPSEEK_API_KEY="sk-your-key"' >> ~/.zshrc
 source ~/.zshrc
 ```
+
+The tool reads rules from `ENGINEERING_BRAIN` (default `~/.config/opencode/engineering-brain`). All rule files live flat in one directory: `constitution.md` plus one `<domain>.md` per domain.
 
 ## Configuration
 
