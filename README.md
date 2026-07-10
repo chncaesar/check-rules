@@ -1,6 +1,11 @@
 # check-rules
 
-A lightweight OpenCode custom tool that checks generated code against personal engineering rules using a cheap model (default: DeepSeek V4 Flash).
+A lightweight OpenCode **plugin + tool** that checks generated code against personal engineering rules using a cheap model (default: DeepSeek V4 Flash).
+
+- **Plugin (v2, automatic):** runs the check deterministically when the agent finishes a round of work — no reliance on the model remembering to call anything.
+- **Tool (v1, manual):** still available for on-demand "check this file" invocation.
+
+Both share the same core logic (domain detection, rule loading, model check).
 
 ## Why This Tool Exists
 
@@ -44,21 +49,63 @@ Instead of trying to make the model innately compliant (we can't), we **check it
 
 This catches what input-side injection misses.
 
+## v2: From Tool to Plugin
+
+v1 shipped as a custom tool. It worked, but had a fundamental weakness the original README admitted:
+
+> **It relies on the model choosing to call the tool.** Cheap models read rule *files* reliably (~97%, a native high-frequency action), but calling a *custom tool* is less familiar, so compliance is lower. A strong-constraint prompt raises the probability but — like MCP tool selection — **cannot guarantee** the model always calls it.
+
+v1 also named the only reliable fix: a plugin hook that runs the check regardless of whether the model remembers. v2 implements exactly that.
+
+### The design problem: *when* to check, not *whether*
+
+The naive plugin design — "check after every `edit`/`write`" — is wrong, for three reasons:
+
+1. **It destroys flow.** Most edits during development are intermediate (writing half of something, debugging, iterating). Checking every edit constantly interrupts.
+2. **It's expensive.** With ~1300 edits/month in real usage, a check per edit means ~1300 LLM calls, most against half-finished code.
+3. **It floods false positives.** Checking half-written code reports "violations" that are just incomplete work.
+
+**So don't check at the edit boundary — check at the completion boundary.**
+
+### The solution: decouple tracking from checking
+
+- **`tool.execute.after` (edit/write/patch):** cheaply record the touched file into a per-session "dirty set". Zero LLM calls, zero blocking. Editing the same file 100 times is one entry (Set dedup). Mid-edits never trigger a check.
+- **`session.idle`:** the agent has finished a round of work and handed control back to you — i.e. *code is written, not yet tested*. Only now does the plugin batch-check the accumulated dirty files, inject any violations back into the conversation (with `noReply`, so it doesn't kick off a new agent loop), and clear the set.
+
+Result: checks run at ~one per unit of work instead of per edit, never against intermediate states, and no longer depend on the model remembering to call a tool. See [`DESIGN.md`](./DESIGN.md) for the full design.
+
 ## Installation
 
-```bash
-# 1. Copy the tool to OpenCode's custom tools directory
-cp tools/check-rules.ts ~/.config/opencode/tools/check-rules.ts
+### Plugin (recommended — automatic)
 
-# 2. Point OpenCode's engineering-brain at this repo's rules (single source of truth)
+```bash
+# 1. Point OpenCode's engineering-brain at this repo's rules (single source of truth)
 ln -s "$(pwd)/rules" ~/.config/opencode/engineering-brain
 
-# 3. Set your API key
+# 2. Set your API key
 echo 'export DEEPSEEK_API_KEY="sk-your-key"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-The tool reads rules from `ENGINEERING_BRAIN` (default `~/.config/opencode/engineering-brain`). All rule files live flat in one directory: `constitution.md` plus one `<domain>.md` per domain.
+Then reference the plugin by file path in your `~/.config/opencode/opencode.jsonc`:
+
+```jsonc
+{
+  "plugin": ["/absolute/path/to/check-rules/src/plugin.ts"]
+}
+```
+
+The plugin auto-checks code files whenever the agent goes idle. No AGENTS.md constraint needed.
+
+### Tool (optional — manual fallback)
+
+```bash
+cp tools/check-rules.ts ~/.config/opencode/tools/check-rules.ts
+```
+
+Lets you (or the model) trigger a check on demand: "check this file" / "检查一下".
+
+Rules are read from `ENGINEERING_BRAIN` (default `~/.config/opencode/engineering-brain`). All rule files live flat in one directory: `constitution.md` plus one `<domain>.md` per domain.
 
 ## Configuration
 
@@ -68,10 +115,14 @@ The tool reads rules from `ENGINEERING_BRAIN` (default `~/.config/opencode/engin
 | `CHECK_MODEL` | `deepseek-v4-flash` | Model ID to use for checking |
 | `CHECK_API_BASE` | `https://api.deepseek.com` | API base URL |
 | `ENGINEERING_BRAIN` | `~/.config/opencode/engineering-brain` | Path to rules directory |
+| `CHECK_AUTO` | `true` | Set to `false` to disable the plugin's automatic checking |
+| `CHECK_CONCURRENCY` | `5` | Max files checked in parallel on idle |
 
 ## Usage
 
-Add a **strong, non-skippable constraint** to your `~/.config/opencode/AGENTS.md`. A weak instruction like "after writing code, consider checking rules" gets skipped by cheaper models. Use mandatory, step-by-step language instead:
+With the **plugin** installed, checking is automatic — edit code, and when the agent finishes a round of work, violations (if any) are injected into the conversation for the agent to fix or for you to review.
+
+With only the **tool** installed, add a strong, non-skippable constraint to your `~/.config/opencode/AGENTS.md` so the model remembers to call it:
 
 ```markdown
 ## Code Check (mandatory, do not skip)
@@ -86,13 +137,13 @@ Do NOT claim a task is complete without running check-rules. Do NOT skip the
 check on the grounds that "the code is simple" or "I'm sure it's fine."
 ```
 
-Then, when OpenCode generates code, the model runs `check-rules(filePath: "path/to/file")` and shows any violations. You can also call it manually by typing "check this file" or "检查一下".
+## Development
 
-## Limitations
-
-**This relies on the model choosing to call the tool.** The probes proved cheap models read rule *files* reliably (~97%) because reading is a high-frequency, native action. Calling a *custom tool* is a less familiar action, so compliance may be lower. A strong-constraint prompt (above) raises the probability but — like MCP tool selection — **cannot guarantee** the model always calls it.
-
-For deterministic enforcement (run the check automatically after every write, regardless of whether the model remembers), a `tool.execute.after` plugin hook is the only reliable path. Start with the prompt-based approach; if you observe the model frequently forgetting to call check-rules, add a plugin hook as a backstop.
+```bash
+bun install
+bun test          # unit + integration tests (hermetic, no API calls)
+bunx tsc --noEmit # typecheck
+```
 
 ## Verification Methodology
 
@@ -112,11 +163,15 @@ python benchmark/analyze.py ./runs benchmark/tasks.json
 
 ## How It Works
 
-1. The tool reads the file from disk (after it's been written by the coding model)
-2. It detects the domain from file extension (`.go` → backend-go, `.dart` → mobile-flutter, etc.)
-3. It loads the relevant engineering rules from the rules directory
-4. It sends the code + rules to a cheap model (e.g., DeepSeek V4 Flash) for checking
-5. Results are returned to the conversation — the coding model can self-correct, or you review them
+Both plugin and tool share the same core check (`src/core.ts`):
+
+1. Read the file from disk (after it's been written by the coding model)
+2. Detect the domain from file extension (`.go` → backend-go, `.dart` → mobile-flutter, etc.)
+3. Load the relevant engineering rules from the rules directory
+4. Send the code + rules to a cheap model (e.g., DeepSeek V4 Flash) for checking
+5. Return results to the conversation — the coding model can self-correct, or you review them
+
+The **plugin** wraps this with dirty-file tracking (`src/tracker.ts`) and fires it on `session.idle`; the **tool** invokes it directly on demand.
 
 ## Rules
 
